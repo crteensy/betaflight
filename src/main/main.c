@@ -27,6 +27,11 @@
 
 #include "scheduler/scheduler.h"
 
+// crteensy
+#include "drivers/io.h"
+#include "stm32h7xx_hal_gpio.h"
+// /crteensy
+
 void run(void);
 
 int main(int argc, char * argv[])
@@ -39,6 +44,27 @@ int main(int argc, char * argv[])
 #endif
     init();
 
+    // crteensy
+    GPIO_InitTypeDef GPIO_InitStruct = {0};
+    /*Configure GPIO pin : PA10 */
+    GPIO_InitStruct.Pin = GPIO_PIN_8;
+    GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+    GPIO_InitStruct.Pull = GPIO_NOPULL;
+    GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
+    HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+    // /crteensy
+
+//
+  HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_SET);
+  while(1)
+  {
+    HAL_Delay(500);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_RESET);
+    HAL_Delay(500);
+    HAL_GPIO_WritePin(GPIOA, GPIO_PIN_10, GPIO_PIN_SET);
+
+  }
+//*/
     run();
 
     return 0;

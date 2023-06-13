@@ -304,6 +304,7 @@ pllConfig_t pll1Config7A3 = {
 // So use 520Mhz so that OCTOSPI clk can be 200Mhz with OCTOPSI prescaler 2 via PLL2R or 130Mhz with OCTOPSI prescaler 1 via PLL1Q
 
 pllConfig_t pll1Config72x73x = {
+/*
     .clockMhz = 520,
     .m = 4,
     .n = 520000000 / PLL_SRC_FREQ * 4, // Holds DIVN's output to DIVP at 520Mhz.
@@ -313,6 +314,16 @@ pllConfig_t pll1Config72x73x = {
     .r = 2,
     .vos = PWR_REGULATOR_VOLTAGE_SCALE0,
     .vciRange = RCC_PLL1VCIRANGE_1,
+*/
+  .clockMhz = 400,
+  .m = 1,
+  .n = 50,
+  .p = 1,
+  .q = 2,
+  .r = 2,
+  .vos = PWR_REGULATOR_VOLTAGE_SCALE0,
+//    .vciRange = RCC_PLL1VCIRANGE_1,
+  .vciRange = RCC_PLL1VCIRANGE_3
 };
 
 #define MCU_HCLK_DIVIDER RCC_HCLK_DIV2
@@ -475,10 +486,9 @@ void SystemClock_Config(void)
 
     // Pre-configure voltage scale to PWR_REGULATOR_VOLTAGE_SCALE1.
     // SystemClockHSE_Config may configure PWR_REGULATOR_VOLTAGE_SCALE0.
-
     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
-#elif defined(STM32H7A3xxQ) || defined(STM32H725xx)
+#elif defined(STM32H7A3xxQ) // || defined(STM32H725xx)
 
     // We assume all SMPS equipped devices use this mode (Direct SMPS).
     // - All STM32H7A3xxQ devices.
@@ -491,6 +501,11 @@ void SystemClock_Config(void)
     HAL_PWREx_ConfigSupply(PWR_DIRECT_SMPS_SUPPLY);
 
     __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE0);
+
+#elif defined(STM32H725xx)
+    HAL_PWREx_ConfigSupply(PWR_DIRECT_SMPS_SUPPLY);
+
+    __HAL_PWR_VOLTAGESCALING_CONFIG(PWR_REGULATOR_VOLTAGE_SCALE1);
 
 #else
 #error Unknown MCU
@@ -704,6 +719,199 @@ void CRS_IRQHandler(void)
     HAL_RCCEx_CRS_IRQHandler();
 }
 #endif
+
+void SystemInit_MX (void)
+{
+#if defined (DATA_IN_D2_SRAM)
+ __IO uint32_t tmpreg;
+#endif /* DATA_IN_D2_SRAM */
+
+  /* FPU settings ------------------------------------------------------------*/
+  #if (__FPU_PRESENT == 1) && (__FPU_USED == 1)
+    SCB->CPACR |= ((3UL << (10*2))|(3UL << (11*2)));  /* set CP10 and CP11 Full Access */
+  #endif
+  /* Reset the RCC clock configuration to the default reset state ------------*/
+
+   /* Increasing the CPU frequency */
+  if(FLASH_LATENCY_DEFAULT  > (READ_BIT((FLASH->ACR), FLASH_ACR_LATENCY)))
+  {
+    /* Program the new number of wait states to the LATENCY bits in the FLASH_ACR register */
+    MODIFY_REG(FLASH->ACR, FLASH_ACR_LATENCY, (uint32_t)(FLASH_LATENCY_DEFAULT));
+  }
+
+  /* Set HSION bit */
+  RCC->CR |= RCC_CR_HSION;
+
+  /* Reset CFGR register */
+  RCC->CFGR = 0x00000000;
+
+  /* Reset HSEON, HSECSSON, CSION, HSI48ON, CSIKERON, PLL1ON, PLL2ON and PLL3ON bits */
+  RCC->CR &= 0xEAF6ED7FU;
+
+   /* Decreasing the number of wait states because of lower CPU frequency */
+  if(FLASH_LATENCY_DEFAULT  < (READ_BIT((FLASH->ACR), FLASH_ACR_LATENCY)))
+  {
+    /* Program the new number of wait states to the LATENCY bits in the FLASH_ACR register */
+    MODIFY_REG(FLASH->ACR, FLASH_ACR_LATENCY, (uint32_t)(FLASH_LATENCY_DEFAULT));
+  }
+
+#if defined(D3_SRAM_BASE)
+  /* Reset D1CFGR register */
+  RCC->D1CFGR = 0x00000000;
+
+  /* Reset D2CFGR register */
+  RCC->D2CFGR = 0x00000000;
+
+  /* Reset D3CFGR register */
+  RCC->D3CFGR = 0x00000000;
+#else
+  /* Reset CDCFGR1 register */
+  RCC->CDCFGR1 = 0x00000000;
+
+  /* Reset CDCFGR2 register */
+  RCC->CDCFGR2 = 0x00000000;
+
+  /* Reset SRDCFGR register */
+  RCC->SRDCFGR = 0x00000000;
+#endif
+  /* Reset PLLCKSELR register */
+  RCC->PLLCKSELR = 0x02020200;
+
+  /* Reset PLLCFGR register */
+  RCC->PLLCFGR = 0x01FF0000;
+  /* Reset PLL1DIVR register */
+  RCC->PLL1DIVR = 0x01010280;
+  /* Reset PLL1FRACR register */
+  RCC->PLL1FRACR = 0x00000000;
+
+  /* Reset PLL2DIVR register */
+  RCC->PLL2DIVR = 0x01010280;
+
+  /* Reset PLL2FRACR register */
+
+  RCC->PLL2FRACR = 0x00000000;
+  /* Reset PLL3DIVR register */
+  RCC->PLL3DIVR = 0x01010280;
+
+  /* Reset PLL3FRACR register */
+  RCC->PLL3FRACR = 0x00000000;
+
+  /* Reset HSEBYP bit */
+  RCC->CR &= 0xFFFBFFFFU;
+
+  /* Disable all interrupts */
+  RCC->CIER = 0x00000000;
+
+#if (STM32H7_DEV_ID == 0x450UL)
+  /* dual core CM7 or single core line */
+  if((DBGMCU->IDCODE & 0xFFFF0000U) < 0x20000000U)
+  {
+    /* if stm32h7 revY*/
+    /* Change  the switch matrix read issuing capability to 1 for the AXI SRAM target (Target 7) */
+    *((__IO uint32_t*)0x51008108) = 0x000000001U;
+  }
+#endif /* STM32H7_DEV_ID */
+
+#if defined(DATA_IN_D2_SRAM)
+  /* in case of initialized data in D2 SRAM (AHB SRAM), enable the D2 SRAM clock (AHB SRAM clock) */
+#if defined(RCC_AHB2ENR_D2SRAM3EN)
+  RCC->AHB2ENR |= (RCC_AHB2ENR_D2SRAM1EN | RCC_AHB2ENR_D2SRAM2EN | RCC_AHB2ENR_D2SRAM3EN);
+#elif defined(RCC_AHB2ENR_D2SRAM2EN)
+  RCC->AHB2ENR |= (RCC_AHB2ENR_D2SRAM1EN | RCC_AHB2ENR_D2SRAM2EN);
+#else
+  RCC->AHB2ENR |= (RCC_AHB2ENR_AHBSRAM1EN | RCC_AHB2ENR_AHBSRAM2EN);
+#endif /* RCC_AHB2ENR_D2SRAM3EN */
+
+  tmpreg = RCC->AHB2ENR;
+  (void) tmpreg;
+#endif /* DATA_IN_D2_SRAM */
+
+#if defined(DUAL_CORE) && defined(CORE_CM4)
+  /* Configure the Vector Table location add offset address for cortex-M4 ------------------*/
+#if defined(USER_VECT_TAB_ADDRESS)
+  SCB->VTOR = VECT_TAB_BASE_ADDRESS | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal D2 AXI-RAM or in Internal FLASH */
+#endif /* USER_VECT_TAB_ADDRESS */
+
+#else
+  /*
+   * Disable the FMC bank1 (enabled after reset).
+   * This, prevents CPU speculation access on this bank which blocks the use of FMC during
+   * 24us. During this time the others FMC master (such as LTDC) cannot use it!
+   */
+  FMC_Bank1_R->BTCR[0] = 0x000030D2;
+
+  /* Configure the Vector Table location -------------------------------------*/
+#if defined(USER_VECT_TAB_ADDRESS)
+  SCB->VTOR = VECT_TAB_BASE_ADDRESS | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal D1 AXI-RAM or in Internal FLASH */
+#endif /* USER_VECT_TAB_ADDRESS */
+
+#endif /*DUAL_CORE && CORE_CM4*/
+}
+
+void SystemInit_MX_post (void)
+{
+  memProtReset();
+  initialiseMemorySections();
+#if !defined(USE_EXST)
+    // only stand-alone and bootloader firmware needs to do this.
+    // if it's done in the EXST firmware as well as the BOOTLOADER firmware you get a reset loop.
+    systemProcessResetReason();
+#endif
+
+#if defined(USE_FLASH_MEMORY_MAPPED)
+    memoryMappedModeInit();
+
+    // !IMPORTANT!  Do NOT reset peripherals, clocks and GPIO pins used by the MCU to access the memory-mapped flash!!!
+#endif
+
+    /* Configure the Vector Table location add offset address ------------------*/
+#if defined(VECT_TAB_SRAM)
+  #if defined(STM32H743xx) || defined(STM32H750xx) || defined(STM32H723xx) || defined(STM32H725xx) || defined(STM32H730xx)
+    SCB->VTOR = D1_AXISRAM_BASE  | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal ITCMSRAM */
+  #elif defined(STM32H7A3xx) || defined(STM32H7A3xxQ)
+    SCB->VTOR = CD_AXISRAM_BASE  | VECT_TAB_OFFSET; /* Vector Table Relocation in Internal ITCMSRAM */
+  #else
+  #error Unknown MCU type
+  #endif
+#elif defined(USE_EXST)
+    extern uint8_t isr_vector_table_base;
+
+    SCB->VTOR = (uint32_t)&isr_vector_table_base;
+  #if defined(STM32H730xx)
+    /* Configure the Vector Table location add offset address ------------------*/
+
+    extern uint8_t isr_vector_table_flash_base;
+    extern uint8_t isr_vector_table_end;
+
+    extern uint8_t ram_isr_vector_table_base;
+
+    memcpy(&ram_isr_vector_table_base, &isr_vector_table_flash_base, (size_t) (&isr_vector_table_end - &isr_vector_table_base));
+
+    SCB->VTOR = (uint32_t)&ram_isr_vector_table_base;
+  #endif
+#else
+    SCB->VTOR = FLASH_BANK1_BASE | VECT_TAB_OFFSET;       /* Vector Table Relocation in Internal FLASH */
+#endif
+
+#ifdef USE_HAL_DRIVER
+    HAL_Init();
+#endif
+
+    SystemClock_Config();
+    SystemCoreClockUpdate();
+
+#ifdef STM32H7
+    initialiseD2MemorySections();
+#endif
+
+    // Configure MPU
+
+    memProtConfigure(mpuRegions, mpuRegionCount);
+
+    // Enable CPU L1-Cache
+    SCB_EnableICache();
+    SCB_EnableDCache();    
+}
 
 void SystemInit (void)
 {

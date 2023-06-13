@@ -62,6 +62,7 @@ Reset_Handler:
   ldr   sp, =_estack      /* set stack pointer */
 
   bl persistentObjectInit
+  bl  SystemInit_MX
 
 /* Copy the data segment initializers from flash to SRAM */  
   movs  r1, #0
@@ -131,7 +132,7 @@ LoopMarkHeapStack:
   bcc MarkHeapStack
 
 /* Call the clock system intitialization function.*/
-  bl  SystemInit   
+  bl  SystemInit_MX_post
 /* Call static constructors */
 /*  bl __libc_init_array */
 /* Call the application's entry point.*/
