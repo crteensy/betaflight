@@ -56,6 +56,7 @@ int main(int argc, char * argv[])
     // /crteensy
 */
 //
+/*
   HAL_GPIO_WritePin(GPIOA, GPIO_PIN_8, GPIO_PIN_RESET);
   while(1)
   {
